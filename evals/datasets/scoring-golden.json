@@ -1,0 +1,19 @@
+{
+  "description": "Human relevance labels for seed/candidates.csv against seed/sample-jd.txt (Senior React Engineer). 2 = strong, 1 = partial, 0 = weak. Used for ranking metrics (NDCG@5, Spearman, pairwise order accuracy) of the scoring model.",
+  "version": 1,
+  "labels": {
+    "Rahim Chowdhury": 2,
+    "Nusrat Jahan": 2,
+    "Farhana Islam": 2,
+    "Jonas Weber": 2,
+    "Priya Sen": 2,
+    "Mehedi Hasan": 1,
+    "Sadia Rahman": 1,
+    "Ayesha Siddiqua": 1,
+    "Zara Karim": 1,
+    "Tanvir Ahmed": 1,
+    "Arif Hossain": 0,
+    "Imran Kabir": 0,
+    "Kamal Uddin": 0
+  }
+}

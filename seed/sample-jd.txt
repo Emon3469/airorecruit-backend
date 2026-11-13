@@ -1,0 +1,34 @@
+Senior React Engineer (Frontend Platform)
+
+Company: Aironauts Technologies
+Location: Dhaka, Bangladesh
+Employment type: Full-time
+Work model: Hybrid (3 days in office)
+Salary: BDT 250,000 - 350,000 per month
+
+About the role
+We're building an AI-native recruiting platform used by hiring teams across South Asia and Europe. You'll own our frontend platform: the chat workspace, interactive cards, and the real-time dashboard that recruiters live in all day.
+
+What you'll do
+- Build fast, accessible React interfaces for chat-first AI workflows (streaming, live progress, editable previews).
+- Design the component system and state management used by every product team.
+- Work closely with backend engineers on API contracts (REST + Server-Sent Events).
+- Mentor engineers and raise the bar on testing and code review.
+
+Requirements
+- 5+ years of professional frontend experience
+- Expert in React and TypeScript
+- Strong JavaScript, HTML and CSS fundamentals
+- Experience with TanStack Query or Redux for server/client state
+- Experience testing UIs with Jest or Vitest and Testing Library
+- Comfortable working with REST APIs and real-time updates (WebSockets or SSE)
+
+Nice to have
+- Node.js / Express experience
+- Next.js
+- Tailwind
+- Experience building LLM-powered product features
+- Accessibility expertise
+
+How to apply
+Reply to the recruiter who contacted you, or send your CV to careers@aironauts.example.

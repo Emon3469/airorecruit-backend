@@ -1,0 +1,61 @@
+# docker compose up --build
+#   mongo  : MongoDB 7          (localhost:27017)
+#   redis  : Redis 7            (localhost:6379)  BullMQ + Pub/Sub
+#   api    : Express API + SSE  (http://localhost:4000)
+#   worker : BullMQ workers (sourcing, scoring, outreach, replies). Scale with `--scale worker=3`.
+name: airorecruit
+
+x-app: &app
+  build: .
+  env_file:
+    - path: .env
+      required: false
+  environment:
+    MONGO_URI: mongodb://mongo:27017/airorecruit
+    REDIS_URL: redis://redis:6379
+  depends_on:
+    mongo:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+  restart: unless-stopped
+
+services:
+  mongo:
+    image: mongo:7
+    ports: ["27017:27017"]
+    volumes: [mongo-data:/data/db]
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory-policy", "noeviction"]
+    ports: ["6379:6379"]
+    volumes: [redis-data:/data]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  api:
+    <<: *app
+    command: ["node", "dist/server.js"]
+    ports: ["4000:4000"]
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:4000/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+
+  worker:
+    <<: *app
+    command: ["node", "dist/worker.js"]
+
+volumes:
+  mongo-data:
+  redis-data:

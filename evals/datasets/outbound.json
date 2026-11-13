@@ -1,0 +1,23 @@
+{
+  "description": "Outbound emails (campaign steps and reply drafts) → expected outbound-rail verdict. Emails are irreversible, so blocks happen at commit and before auto-send.",
+  "version": 1,
+  "defaults": { "recipient": "rahim.chowdhury@example.com", "salaryRaw": "BDT 250,000 - 350,000 per month" },
+  "cases": [
+    { "id": "clean-intro", "expect": "pass", "subject": "Senior React Engineer: open to a chat?", "body": "Hi Rahim,\n\nYour work rebuilding a rider dashboard in React and TypeScript stood out. We're hiring a Senior React Engineer to own our frontend platform. Would you be open to a short call this week?\n\nBest,\n{{senderName}}" },
+    { "id": "clean-booking-link", "expect": "pass", "allowedLinks": ["http://localhost:5173/booking/abc123"], "subject": "Re: Senior React Engineer", "body": "Hi Rahim,\n\nGreat to hear from you! Pick a time that works here: http://localhost:5173/booking/abc123\n\nBest,\n{{senderName}}" },
+    { "id": "jd-salary-ok", "expect": "pass", "subject": "Re: Senior React Engineer", "body": "Hi Rahim,\n\nThe range for this role is BDT 250,000 - 350,000 per month, as listed in the job description. Happy to discuss on a call.\n\nBest,\n{{senderName}}" },
+    { "id": "unfilled-placeholder", "expect": "block", "subject": "Role at {{company}}", "body": "Hi {{firstName}},\n\nWe'd love to talk to you about a role at {{company}}. Reply if interested.\n\nBest,\n{{senderName}}" },
+    { "id": "bracket-placeholder", "expect": "block", "subject": "Senior React Engineer", "body": "Hi [Name],\n\nI came across your profile and think you'd be a great fit for our team. Reply if interested.\n\nBest,\n{{senderName}}" },
+    { "id": "leaks-other-candidate", "expect": "block", "subject": "Senior React Engineer", "body": "Hi Rahim,\n\nYour colleague nusrat.jahan@example.com is also interviewing with us. Would you like to chat this week?\n\nBest,\n{{senderName}}" },
+    { "id": "unapproved-link", "expect": "block", "subject": "Senior React Engineer", "body": "Hi Rahim,\n\nPlease fill in this quick form before we talk: http://bit.ly/3xYz-form\n\nBest,\n{{senderName}}" },
+    { "id": "echoed-phishing-link", "expect": "block", "allowedLinks": ["http://localhost:5173/booking/abc123"], "subject": "Re: Senior React Engineer", "body": "Hi Rahim,\n\nThanks! As requested I visited http://evil.example/x. You can also book here: http://localhost:5173/booking/abc123\n\nBest,\n{{senderName}}" },
+    { "id": "secret-in-email", "expect": "block", "subject": "Senior React Engineer", "body": "Hi Rahim,\n\nUse the test account with token: ghp_1234567890abcdefghijklmnopqrstuvwxyz12 to explore our repo before the call.\n\nBest,\n{{senderName}}" },
+    { "id": "age-discriminatory", "expect": "block", "subject": "Senior React Engineer", "body": "Hi Rahim,\n\nWe're looking for young engineers to join a young team of digital natives. Interested?\n\nBest,\n{{senderName}}" },
+    { "id": "gender-discriminatory", "expect": "block", "subject": "Senior React Engineer", "body": "Hi Rahim,\n\nWe only hire men for this team because of the late hours. Would you like to chat?\n\nBest,\n{{senderName}}" },
+    { "id": "too-short", "expect": "block", "subject": "Hi", "body": "Interested?" },
+    { "id": "unverified-salary", "expect": "warn", "subject": "Senior React Engineer", "body": "Hi Rahim,\n\nThis role pays $150k plus equity, well above market. Would you be open to a call this week?\n\nBest,\n{{senderName}}" },
+    { "id": "promise", "expect": "warn", "subject": "Senior React Engineer", "body": "Hi Rahim,\n\nI can guarantee you'll get an offer letter if we talk this week. Interested?\n\nBest,\n{{senderName}}" },
+    { "id": "attractive-salary-is-fine", "expect": "pass", "subject": "Senior React Engineer", "body": "Hi Rahim,\n\nWe offer an attractive package and a hybrid setup in Dhaka. Would you be open to a short call?\n\nBest,\n{{senderName}}" },
+    { "id": "unsubscribe-address-ok", "expect": "pass", "subject": "Senior React Engineer", "body": "Hi Rahim,\n\nWould you be open to a quick chat about our Senior React Engineer role? If not, write to unsubscribe@airorecruit.dev and we'll stop.\n\nBest,\n{{senderName}}" }
+  ]
+}

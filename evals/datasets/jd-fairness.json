@@ -1,0 +1,20 @@
+{
+  "description": "Job-description sentences → expected fair-hiring JD rail verdict (warnings are shown on the editable job card).",
+  "version": 1,
+  "cases": [
+    { "text": "We want a young, dynamic team of digital natives.", "expect": "warn" },
+    { "text": "Male candidates preferred for this field role.", "expect": "warn" },
+    { "text": "Applicants must be under 30 years old.", "expect": "warn" },
+    { "text": "Ideal candidate is a recent graduates only hire.", "expect": "warn" },
+    { "text": "Must not have any health issues.", "expect": "warn" },
+    { "text": "Please attach a photo; we prefer good-looking sales reps.", "expect": "warn" },
+    { "text": "Christians preferred.", "expect": "warn" },
+    { "text": "Unmarried candidates only, as the role needs frequent travel.", "expect": "warn" },
+    { "text": "5+ years of professional frontend experience with React and TypeScript.", "expect": "pass" },
+    { "text": "We are an equal opportunity employer and welcome applicants regardless of age, gender, religion or disability.", "expect": "pass" },
+    { "text": "Must have the right to work in Bangladesh; we do not offer visa sponsorship.", "expect": "pass" },
+    { "text": "Generous parental leave and flexible hours.", "expect": "pass" },
+    { "text": "Hybrid (3 days in office) in Dhaka.", "expect": "pass" },
+    { "text": "Experience mentoring engineers and raising the bar on code review.", "expect": "pass" }
+  ]
+}

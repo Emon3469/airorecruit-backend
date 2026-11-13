@@ -2,7 +2,9 @@ import { Router } from 'express';
 import multer from 'multer';
 import { z } from 'zod';
 import { env } from '../../config/env';
-import { Campaign, Candidate, CsvUpload, DispatchLog, Job, LlmUsage, PendingAction, Reply, SourcingRun, isValidId } from '../../models';
+import { Booking, Campaign, Candidate, CsvUpload, DispatchLog, Job, LlmUsage, PendingAction, Reply, SourcingRun, isValidId, oid } from '../../models';
+import { importRows } from '../../services/sourcing.service';
+import { enqueue, jobIds, QUEUE_NAMES } from '../../queues/queues';
 import { ValidationError } from '../../lib/errors';
 import { CANDIDATE_STATUSES, allowedNext, parseStatus, type CandidateStatus } from '../../domain/pipeline';
 import { ah, idParam, parse } from '../middleware';
@@ -84,8 +86,39 @@ jobsRouter.get(
     const sort: Record<string, 1 | -1> =
       q.sort === 'name' ? { name: 1 } : q.sort === 'updated' ? { updatedAt: -1 } : q.sort === 'created' ? { createdAt: 1 } : { score: -1, createdAt: 1 };
     const candidates = await Candidate.find(filter, { snippet: 0 }).sort(sort).limit(q.limit ?? 500).lean();
+    // Outreach progress per candidate (latest campaign): powers the Step / Next step columns.
+    const camps = await Campaign.find({ jobId: id }, { steps: 1, recipients: 1, status: 1, name: 1 }).sort({ createdAt: -1 }).lean();
+    const sent = await DispatchLog.aggregate<{ _id: { c: unknown; k: unknown }; n: number }>([
+      { $match: { jobId: oid(id), status: 'sent' } },
+      { $group: { _id: { c: '$campaignId', k: '$candidateId' }, n: { $sum: 1 } } },
+    ]);
+    const outreachOf = (cid: string) => {
+      for (const camp of camps) {
+        const r = camp.recipients.find((x) => String(x.candidateId) === cid);
+        if (!r) continue;
+        const done = sent.find((s) => String(s._id.c) === String(camp._id) && String(s._id.k) === cid)?.n ?? 0;
+        const total = camp.steps.length;
+        const nextIdx = Math.min(done, total - 1);
+        return {
+          campaignId: String(camp._id),
+          campaignStatus: camp.status,
+          state: r.state,
+          sentSteps: done,
+          totalSteps: total,
+          currentLabel: camp.steps[Math.max(0, done - 1)]?.label ?? camp.steps[0]?.label ?? 'Intro',
+          nextLabel: r.state === 'active' ? camp.steps[nextIdx]?.label ?? null : null,
+          nextRunAt: r.state === 'active' ? r.nextRunAt : null,
+          stoppedReason: r.stoppedReason ?? null,
+        };
+      }
+      return null;
+    };
     res.json({
-      candidates: candidates.map((c) => ({ ...c, allowedNext: allowedNext(c.status as CandidateStatus, c.rejectedStage as 'review' | 'final' | null) })),
+      candidates: candidates.map((c) => ({
+        ...c,
+        allowedNext: allowedNext(c.status as CandidateStatus, c.rejectedStage as 'review' | 'final' | null),
+        outreach: outreachOf(String(c._id)),
+      })),
       statuses: CANDIDATE_STATUSES,
     });
   }),
@@ -180,6 +213,70 @@ jobsRouter.patch(
     await logActivity({ jobId: id, actor: 'user_ui', action: 'settings_updated', to: `autoReply=${body.autoReply}` });
     await publish('job.updated', { jobId: id }, { jobId: id });
     res.json({ job });
+  }),
+);
+
+/** "+ Add Candidate" (explicit UI action): dedupe like any import, then score in the background. */
+jobsRouter.post(
+  '/jobs/:id/candidates',
+  ah(async (req, res) => {
+    const jobId = idParam(req);
+    const job = await getJob(jobId);
+    const b = parse(
+      z.object({
+        name: z.string().trim().min(2).max(120),
+        email: z.string().trim().max(200).nullable().optional(),
+        profileUrl: z.string().trim().max(300).nullable().optional(),
+        headline: z.string().trim().max(200).nullable().optional(),
+        location: z.string().trim().max(120).nullable().optional(),
+        company: z.string().trim().max(120).nullable().optional(),
+        skills: z.array(z.string().trim().max(60)).max(40).optional(),
+        yearsExperience: z.number().min(0).max(60).nullable().optional(),
+      }),
+      req.body,
+    );
+    if (!b.email && !b.profileUrl) throw new ValidationError('Add an email or a profile URL so duplicates can be detected.');
+    const stats = await importRows(job._id, [
+      {
+        name: b.name,
+        email: b.email ?? null,
+        profileUrl: b.profileUrl ?? null,
+        headline: b.headline ?? null,
+        location: b.location ?? null,
+        skills: b.skills ?? [],
+        yearsExperience: b.yearsExperience ?? null,
+        company: b.company ?? null,
+        snippet: null,
+        source: 'manual',
+      },
+    ]);
+    const created = stats.createdIds[0];
+    if (created) {
+      await enqueue(QUEUE_NAMES.scoring, 'score', { candidateId: String(created), runId: null }, { jobId: jobIds.scoring(String(created), 'manual') });
+      await logActivity({ jobId, candidateId: created, candidateName: b.name, actor: 'user_ui', action: 'candidate_added', message: 'Added manually' });
+      await publish('state_sync', { reason: 'candidate_added', candidateIds: [String(created)] }, { jobId });
+    }
+    res.status(created ? 201 : 200).json({ created: !!created, duplicate: !created, candidateId: created ? String(created) : null });
+  }),
+);
+
+/** Interview page: booked meetings and outstanding booking links. */
+jobsRouter.get(
+  '/jobs/:id/meetings',
+  ah(async (req, res) => {
+    const jobId = idParam(req);
+    const bookings = await Booking.find({ jobId }).sort({ chosenSlot: 1, createdAt: -1 }).lean();
+    const cands = await Candidate.find({ _id: { $in: bookings.map((b) => b.candidateId) } }, { name: 1, headline: 1, status: 1, email: 1, currentCompany: 1 }).lean();
+    res.json({
+      meetings: bookings.map((b) => ({
+        token: b.token,
+        candidate: cands.find((c) => String(c._id) === String(b.candidateId)) ?? null,
+        slots: b.slots,
+        chosenSlot: b.chosenSlot,
+        bookedAt: b.bookedAt,
+        createdAt: b.createdAt,
+      })),
+    });
   }),
 );
 

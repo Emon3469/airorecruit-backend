@@ -4,7 +4,7 @@ A chat-first AI assistant that runs a recruiter's whole hiring process, **JD →
 
 > Repos: **Backend (this repo)**: https://github.com/Emon3469/airorecruit-backend · Frontend (separate repo): https://github.com/Emon3469/airorecruit-frontend · Demo video: `<link>`
 >
-> Connecting the frontend: see [`docs/FRONTEND_INTEGRATION.md`](docs/FRONTEND_INTEGRATION.md) (one env var, `VITE_API_URL`). Agent design: [`docs/AGENT_GRAPH.md`](docs/AGENT_GRAPH.md).
+> Connecting the frontend: see [`docs/FRONTEND_INTEGRATION.md`](docs/FRONTEND_INTEGRATION.md) (one env var, `VITE_API_URL`). Agent design: [`docs/AGENT_GRAPH.md`](docs/AGENT_GRAPH.md). Original design blueprint: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) · submission overview: [`docs/SUBMISSION_OVERVIEW.md`](docs/SUBMISSION_OVERVIEW.md).
 
 | | |
 |---|---|
@@ -13,7 +13,7 @@ A chat-first AI assistant that runs a recruiter's whole hiring process, **JD →
 | Vector search | **Talent rediscovery** over earlier jobs: on-device embeddings (all-MiniLM-L6-v2) in **Qdrant** (or a MongoDB fallback) |
 | Agent | Plain tool calling + a deterministic **Proposal → Commit** service layer (no framework) |
 | Guardrails | 10-rail stack ported from a NeMo Guardrails reference implementation (Python + Colang) to TypeScript and adapted to hiring: secrets/PII, fair-hiring, privacy, jailbreak, approval bypass, off-topic, dialog, outbound-email fact-check, retrieval scrubbing, urgency, cost guard |
-| Tests & evals | 91 tests (`npm test`) + a Docker-free LLMOps eval harness with a CI quality gate (`npm run eval`) + Promptfoo red team (`npm run eval:promptfoo`) |
+| Tests & evals | 93 tests (`npm test`) + a 75-check end-to-end acceptance run (`node scripts/acceptance.mjs`) + a Docker-free LLMOps eval harness with a CI quality gate (`npm run eval`) + Promptfoo red team (`npm run eval:promptfoo`) |
 
 ---
 
@@ -38,14 +38,14 @@ npm install
 npm run dev:all               # API + workers in one process (hot reload)
 # or two terminals: npm run dev   and   npm run dev:worker
 npm run seed -- --reset       # demo conversation: sample JD → job, CSV attached to a pending sourcing card
-npm test                      # 91 tests (downloads a MongoDB binary on first run)
+npm test                      # 93 tests (downloads a MongoDB binary on first run)
 npm run eval                  # LLMOps eval suites + quality gate (no Docker)
 npm run eval:promptfoo        # Promptfoo functional + red-team suite against the real agent
 npm run eval:replies          # reply-classifier eval (accuracy + confusion matrix)
 npm run check:connections     # read-only MongoDB/Redis/LLM config check (credentials masked)
 npm run llm:smoke             # one tool call + one JSON-schema call against the configured LLM
 npm run talent:smoke          # on-device embeddings + Qdrant round trip (throwaway collection)
-node scripts/acceptance.mjs   # user acceptance test of every feature against a running server
+node scripts/acceptance.mjs   # 75 checks of every feature against a running server (75/75 passing)
 ```
 
 **Hosted MongoDB/Redis (Atlas, Redis Cloud) instead of Docker:** leave `MONGO_URI`/`REDIS_URL` empty and set `DATABASE_URL`, `DATABASE_USERNAME`, `DATABASE_PASSWORD`, `REDIS_HOST`, `REDIS_PORT`, `REDIS_USERNAME`, `REDIS_PASSWORD` (see `.env.example`), then `npm run dev:all`. Note: `docker compose` always uses its own `mongo`/`redis` containers.
@@ -310,7 +310,7 @@ Everything runs on **mongodb-memory-server + an in-memory queue adapter that exe
 
 **Reading the held-out row honestly:** the deterministic rails are tuned for zero false positives (blocking a recruiter's real work is the worst failure mode) and are weak on unseen paraphrases of off-topic/jailbreak/privacy requests. That's why the LLM recall layer exists. Run `npm run eval` with `LLM_API_KEY` set to measure the combined system; those numbers aren't in this README because no key was available here. A miss is contained either way: the agent cannot write or send anything.
 
-`npm test` (91 tests) also covers the rails directly: unit tests for each rail, plus integration tests for secrets never persisted, campaign blocked at commit then fixed, urgent replies flagged, and ops metrics/HITL invariants. The original 18-step JD → hire flow is still there.
+`npm test` (93 tests) also covers the rails directly: unit tests for each rail, plus integration tests for secrets never persisted, campaign blocked at commit then fixed, urgent replies flagged, and ops metrics/HITL invariants. The original 18-step JD → hire flow is still there.
 
 ---
 

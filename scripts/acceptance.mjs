@@ -147,7 +147,9 @@ check('CSV upload validated (14 valid, 1 invalid) and attached to the pending ca
 const badForm = new FormData();
 badForm.append('file', new Blob(['not,a\ncsv']), 'x.exe');
 check('non-CSV upload rejected', (await fetch(`${BASE}/api/jobs/${jobId}/candidates/upload`, { method: 'POST', body: badForm })).status === 400);
-await api('PATCH', `/api/actions/${srcProp?._id}`, { payload: { useWebSearch: meta.webSearch } });
+// Talent-pool rediscovery is exercised in section 9; keeping it off here makes this run independent of earlier runs
+// (a rediscovered profile can legitimately carry an email the recruiter typed in a previous job).
+await api('PATCH', `/api/actions/${srcProp?._id}`, { payload: { useWebSearch: meta.webSearch, includeTalentPool: false } });
 r = await say(conv, 'yes');
 check('chat "yes" confirms the single pending proposal', r.cards.some((c) => c.type === 'SOURCING_PROGRESS'), r.reply.slice(0, 80));
 const run = await until(async () => {
@@ -231,6 +233,8 @@ check('resume campaign', (await api('GET', `/api/campaigns/${campaignId}`)).camp
 // ==================================================================== 7. replies
 head('replies');
 const [ca, cb, cc] = contacted;
+// The review section switched auto-reply on; this section tests the human-approval path, so turn it off explicitly.
+await api('PATCH', `/api/jobs/${jobId}/settings`, { autoReply: 'off' });
 const rep1 = await api('POST', '/simulate-reply', { candidateId: ca._id, body: 'Thanks! I have another offer that expires Friday. Happy to jump on a call, are you free Thursday afternoon?' });
 check('simulate-reply → 202, follow-ups cancelled synchronously', rep1.status === 202 && rep1.stoppedFollowUps === 2, `stopped=${rep1.stoppedFollowUps}`);
 const reply1 = await until(async () => {

@@ -12,7 +12,8 @@ import { publish } from '../services/events';
 import { ConflictError } from '../lib/errors';
 
 /* ------------------------------------------------------------------ one turn at a time per conversation */
-const running = new Set<string>();
+/** conversationId → current turnId (also the lock: one turn at a time per conversation). */
+const running = new Map<string, string>();
 
 const TOOL_STATUS: Record<string, string> = {
   propose_create_job: 'Extracting the job from the description',
@@ -26,7 +27,30 @@ const TOOL_STATUS: Record<string, string> = {
 };
 
 function status(conversationId: string, data: Record<string, unknown>) {
-  return publish('agent.status', data, { conversationId });
+  return publish('agent.status', { turnId: running.get(conversationId) ?? null, ...data }, { conversationId });
+}
+
+/** Batches token deltas (~40 ms) into `agent.delta` SSE events so the UI can stream the reply. */
+function deltaStreamer(conversationId: string) {
+  let buf = '';
+  let timer: NodeJS.Timeout | null = null;
+  const flush = () => {
+    timer = null;
+    if (!buf) return;
+    const text = buf;
+    buf = '';
+    void publish('agent.delta', { turnId: running.get(conversationId) ?? null, text }, { conversationId });
+  };
+  return {
+    push(delta: string) {
+      buf += delta;
+      timer ??= setTimeout(flush, 40);
+    },
+    end() {
+      if (timer) clearTimeout(timer);
+      flush();
+    },
+  };
 }
 
 /**
@@ -37,8 +61,8 @@ function status(conversationId: string, data: Record<string, unknown>) {
 export async function startUserTurn(conversationId: string, content: string): Promise<{ turnId: string }> {
   if (running.has(conversationId)) throw new ConflictError('TURN_IN_PROGRESS', 'I am still working on your previous message.');
   await getConversation(conversationId);
-  running.add(conversationId);
   const turnId = `${conversationId}-${Date.now()}`;
+  running.set(conversationId, turnId);
   void status(conversationId, { turnId, phase: 'started' });
   handleUserMessage(conversationId, content, { lockHeld: true })
     .catch(async (err) => {
@@ -86,7 +110,7 @@ async function buildHistory(conversationId: Types.ObjectId): Promise<NeutralMess
   msgs.reverse();
   const out: NeutralMessage[] = [];
   for (const m of msgs) {
-    if (m.role === 'system') continue;
+    if (m.role === 'system' || (m.kind && m.kind !== 'chat')) continue; // team messages and notes never reach the LLM
     const content = `${m.content}${cardSummary(m.cards ?? [])}`.trim() || '(card)';
     const last = out[out.length - 1];
     if (last && last.role === m.role && (last.role === 'user' || last.role === 'assistant')) {
@@ -110,7 +134,7 @@ async function messagesSince(conversationId: Types.ObjectId, since: Date) {
 export async function handleUserMessage(conversationId: string, content: string, opts: { lockHeld?: boolean } = {}): Promise<TurnResult> {
   if (!opts.lockHeld) {
     if (running.has(conversationId)) throw new ConflictError('TURN_IN_PROGRESS', 'I am still working on your previous message.');
-    running.add(conversationId);
+    running.set(conversationId, `${conversationId}-${Date.now()}`);
     try {
       return await handleUserMessage(conversationId, content, { lockHeld: true });
     } finally {
@@ -217,10 +241,16 @@ export async function runAgentTurn(conv: ConversationDoc, userMessage: string, n
     for (let i = 0; i < env.AGENT_MAX_ITERATIONS; i++) {
       void status(String(conv._id), { phase: 'thinking', step: i + 1 });
       const system = agentSystemPrompt(await buildContext(conv));
-      const res = await chat(
-        { tier: 'agent', system, messages, tools, maxTokens: 8000, effort: 'medium' },
-        { purpose: 'agent', jobId, conversationId: conv._id },
-      );
+      const stream = deltaStreamer(String(conv._id));
+      let res;
+      try {
+        res = await chat(
+          { tier: 'agent', system, messages, tools, maxTokens: 8000, effort: 'medium', onText: (d) => stream.push(d) },
+          { purpose: 'agent', jobId, conversationId: conv._id },
+        );
+      } finally {
+        stream.end();
+      }
       if (res.stopReason === 'refusal') {
         finalText = "I can't help with that request.";
         break;

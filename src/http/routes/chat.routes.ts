@@ -2,7 +2,8 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { Conversation } from '../../models';
 import { ah, idParam, parse } from '../middleware';
-import { createConversation, getConversation, listMessages } from '../../services/chat.service';
+import { NotFoundError } from '../../lib/errors';
+import { appendMessage, createConversation, getConversation, listMessages } from '../../services/chat.service';
 import { handleUserMessage, isTurnRunning, startUserTurn } from '../../agent/agent';
 import { cancelAction, confirmAction, getAction, pendingActions, updateActionPayload } from '../../services/actions.service';
 
@@ -29,6 +30,45 @@ chatRouter.get(
   ah(async (req, res) => {
     const conv = await getConversation(idParam(req));
     res.json({ conversation: conv, pendingActions: await pendingActions(String(conv._id)), turnInProgress: isTurnRunning(String(conv._id)) });
+  }),
+);
+
+/**
+ * Collaboration: "Message" (shared with teammates) and "Note" (private, pinned) entries live in the
+ * session timeline but are never sent to the agent. Secrets are still redacted before storage.
+ */
+chatRouter.post(
+  '/conversations/:id/notes',
+  ah(async (req, res) => {
+    const id = idParam(req);
+    const body = parse(z.object({ kind: z.enum(['message', 'note']), content: z.string().trim().min(1).max(10_000), authorName: z.string().max(80).optional() }), req.body);
+    const conv = await getConversation(id);
+    const { redact } = await import('../../guardrails/pii');
+    const msg = await appendMessage(conv._id, { role: 'user', content: redact(body.content).text, kind: body.kind, authorName: body.authorName ?? 'You', jobId: conv.activeJobId });
+    res.status(201).json({ message: msg });
+  }),
+);
+
+/** Session rename (the session title in the UI header). */
+chatRouter.patch(
+  '/conversations/:id/title',
+  ah(async (req, res) => {
+    const { title } = parse(z.object({ title: z.string().trim().min(1).max(120) }), req.body);
+    const conv = await Conversation.findByIdAndUpdate(idParam(req), { $set: { title } }, { new: true });
+    if (!conv) throw new NotFoundError('Conversation');
+    res.json({ conversation: conv });
+  }),
+);
+
+/** Job switcher in the UI: the agent's context follows the job the recruiter is looking at. */
+chatRouter.patch(
+  '/conversations/:id',
+  ah(async (req, res) => {
+    const id = idParam(req);
+    const { activeJobId } = parse(z.object({ activeJobId: z.string().regex(/^[a-f0-9]{24}$/i) }), req.body);
+    const conv = await Conversation.findByIdAndUpdate(id, { $set: { activeJobId } }, { new: true });
+    if (!conv) throw new NotFoundError('Conversation');
+    res.json({ conversation: conv });
   }),
 );
 

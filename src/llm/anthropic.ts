@@ -68,7 +68,7 @@ export class AnthropicProvider implements LlmProvider {
   }
 
   async chat(p: ChatParams): Promise<ChatResult> {
-    const res = await this.client.beta.messages.create({
+    const body = {
       model: p.model,
       max_tokens: p.maxTokens ?? 16000,
       system: p.system,
@@ -84,7 +84,11 @@ export class AnthropicProvider implements LlmProvider {
         : {}),
       ...(p.effort ? { output_config: { effort: p.effort } } : {}),
       ...this.fallbackOpts(p.model),
-    });
+    };
+    // Real token streaming when the caller wants deltas (the agent loop forwards them over SSE).
+    const res = p.onText
+      ? await this.client.beta.messages.stream(body).on('text', (delta) => p.onText!(delta)).finalMessage()
+      : await this.client.beta.messages.create(body);
 
     const toolCalls: ToolCall[] = [];
     let text = '';
@@ -99,6 +103,7 @@ export class AnthropicProvider implements LlmProvider {
       raw: res.content,
       usage: { promptTokens: res.usage.input_tokens ?? 0, completionTokens: res.usage.output_tokens ?? 0 },
       model: res.model,
+      streamed: !!p.onText,
       stopReason:
         stop === 'tool_use' ? 'tool_use' : stop === 'end_turn' ? 'end' : stop === 'max_tokens' ? 'max_tokens' : stop === 'refusal' ? 'refusal' : 'other',
     };

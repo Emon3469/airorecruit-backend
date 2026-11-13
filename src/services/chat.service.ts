@@ -26,6 +26,8 @@ export interface AppendInput {
   cards?: Card[];
   jobId?: Types.ObjectId | string | null;
   toolTrace?: string[];
+  kind?: 'chat' | 'message' | 'note';
+  authorName?: string | null;
 }
 
 export async function appendMessage(conversationId: Types.ObjectId | string, input: AppendInput) {
@@ -36,6 +38,8 @@ export async function appendMessage(conversationId: Types.ObjectId | string, inp
     cards: input.cards ?? [],
     jobId: input.jobId ?? null,
     toolTrace: input.toolTrace ?? [],
+    kind: input.kind ?? 'chat',
+    authorName: input.authorName ?? null,
   });
   await Conversation.updateOne({ _id: conversationId }, { $set: { updatedAt: new Date() } });
   await publish('message.created', { messageId: String(msg._id), role: msg.role }, { conversationId, jobId: input.jobId });

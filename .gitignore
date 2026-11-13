@@ -9,3 +9,6 @@ coverage/
 # Per-run eval artifacts (history.jsonl, latest.md and baseline.json are kept)
 evals/results/*.json
 .cache/
+
+# assignment brief (not ours to publish)
+docs/*.pdf

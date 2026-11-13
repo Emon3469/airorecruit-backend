@@ -26,7 +26,8 @@ export type EventName =
   | 'usage.updated'
   | 'activity.created'
   | 'guardrail.triggered'
-  | 'agent.status';
+  | 'agent.status'
+  | 'agent.delta';
 
 export interface AppEvent {
   id: number;

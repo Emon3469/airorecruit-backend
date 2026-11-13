@@ -37,6 +37,8 @@ export interface ChatParams {
   tools?: ToolDefinition[];
   maxTokens?: number;
   effort?: 'low' | 'medium' | 'high';
+  /** Token streaming: called with text deltas as the model writes them. */
+  onText?: (delta: string) => void;
 }
 
 export interface ChatResult {
@@ -46,6 +48,8 @@ export interface ChatResult {
   usage: Usage;
   model: string;
   stopReason: 'end' | 'tool_use' | 'max_tokens' | 'refusal' | 'other';
+  /** True when text was already delivered through onText while generating. */
+  streamed?: boolean;
 }
 
 export interface JsonParams<T extends z.ZodTypeAny> {

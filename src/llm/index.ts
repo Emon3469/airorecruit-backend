@@ -147,6 +147,13 @@ export async function chat(params: Omit<ChatParams, 'model'> & { tier?: Tier }, 
     throw err;
   }
   await recordUsage(ctx, res.model || model, res.usage, Date.now() - started, { status: p ? 'ok' : 'mock', promptVersion: version });
+  // Providers without native streaming in this adapter: reveal the text progressively so the UI behaves the same.
+  if (params.onText && !res.streamed && res.text) {
+    for (let i = 0; i < res.text.length; i += 18) {
+      params.onText(res.text.slice(i, i + 18));
+      await new Promise((r) => setTimeout(r, 12));
+    }
+  }
   return res;
 }
 

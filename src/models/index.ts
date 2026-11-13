@@ -35,6 +35,9 @@ const ChatMessageSchema = new Schema(
     jobId: { type: ObjectId, ref: 'Job', default: null },
     /** Tool names the agent used to produce this message (debug/telemetry, shown on hover). */
     toolTrace: { type: [String], default: [] },
+    /** chat = talks to the agent; message = shared with collaborators; note = private pinned note. Only chat reaches the LLM. */
+    kind: { type: String, enum: ['chat', 'message', 'note'], default: 'chat' },
+    authorName: { type: String, default: null },
   },
   opts,
 );

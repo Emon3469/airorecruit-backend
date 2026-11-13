@@ -2,7 +2,7 @@
 
 A chat-first AI assistant that runs a recruiter's whole hiring process, **JD → Job → Sourcing → Review → Outreach → AI replies → Meeting booked → Interview → Shortlist → Hired → Stats**, through interactive chat cards. Heavy work runs in **BullMQ** background jobs, live progress streams over **SSE**, and **nothing is written or sent without the recruiter's confirmation**, enforced in code rather than by prompt.
 
-> Repos: **Backend (this repo)** · Frontend: `airorecruit-frontend` (React 18 + TypeScript, separate repo) · Demo video: `<link>`
+> Repos: **Backend (this repo)**: https://github.com/Emon3469/airorecruit-backend · Frontend (separate repo): https://github.com/Emon3469/airorecruit-frontend · Demo video: `<link>`
 >
 > Connecting the frontend: see [`docs/FRONTEND_INTEGRATION.md`](docs/FRONTEND_INTEGRATION.md) (one env var, `VITE_API_URL`). Agent design: [`docs/AGENT_GRAPH.md`](docs/AGENT_GRAPH.md).
 

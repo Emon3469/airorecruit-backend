@@ -26,7 +26,8 @@
     "eval:promptfoo:view": "cross-env PROMPTFOO_DISABLE_TELEMETRY=1 PROMPTFOO_CONFIG_DIR=./.promptfoo node node_modules/promptfoo/dist/src/main.js view",
     "llm:smoke": "cross-env NODE_ENV=test tsx scripts/llm-smoke.ts",
     "talent:smoke": "cross-env NODE_ENV=test tsx scripts/talent-smoke.ts",
-    "serper:smoke": "cross-env NODE_ENV=test tsx scripts/serper-smoke.ts"
+    "serper:smoke": "cross-env NODE_ENV=test tsx scripts/serper-smoke.ts",
+    "eval:offline": "cross-env LLM_PROVIDER=mock NODE_ENV=test LOG_LEVEL=silent tsx evals/run.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.8.0",

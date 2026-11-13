@@ -250,14 +250,26 @@ describe('end-to-end: JD → hire (offline mock LLM, in-memory queues)', () => {
     await expect(ActivityLog.deleteMany({})).rejects.toThrow(/append-only/);
   });
 
-  it('15. chat confirmation is refused when several proposals are pending', async () => {
+  it('15. chat "yes" with several pending proposals: confirms only the card just shown, otherwise refuses', async () => {
     await handleUserMessage(convId, 'pause the campaign');
     await handleUserMessage(convId, 'turn on auto-reply');
     const before = await PendingAction.countDocuments({ conversationId: convId, status: 'pending' });
     expect(before).toBeGreaterThan(1);
+    // "yes" right after the auto-reply card → confirms exactly that card, says so, leaves the rest pending.
     await handleUserMessage(convId, 'yes');
-    expect(await PendingAction.countDocuments({ conversationId: convId, status: 'pending' })).toBe(before);
-    const last = await ChatMessage.findOne({ conversationId: convId }).sort({ createdAt: -1 });
+    expect((await Job.findById(jobId))!.settings?.autoReply).toBe('meetings_only');
+    expect(await PendingAction.countDocuments({ conversationId: convId, status: 'pending' })).toBe(before - 1);
+    let last = await ChatMessage.findOne({ conversationId: convId }).sort({ createdAt: -1, _id: -1 });
+    expect(last?.content).toMatch(/Confirmed: .*still waiting/);
+
+    // Two pending again, but the last assistant message has no card → ambiguous → refused.
+    await handleUserMessage(convId, 'turn off auto-reply');
+    await handleUserMessage(convId, 'how is the job going?');
+    const pendingNow = await PendingAction.countDocuments({ conversationId: convId, status: 'pending' });
+    expect(pendingNow).toBeGreaterThan(1);
+    await handleUserMessage(convId, 'yes');
+    expect(await PendingAction.countDocuments({ conversationId: convId, status: 'pending' })).toBe(pendingNow);
+    last = await ChatMessage.findOne({ conversationId: convId }).sort({ createdAt: -1, _id: -1 });
     expect(last?.content).toMatch(/Confirm or Cancel button/);
   });
 });

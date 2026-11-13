@@ -27,7 +27,8 @@ async function api(method, url, body, { raw = false } = {}) {
   try {
     json = JSON.parse(text);
   } catch {}
-  return raw ? { status: res.status, text, json } : { status: res.status, ...(json ?? {}) };
+  // HTTP status last: some bodies carry their own "status" field (e.g. simulate-reply → "processing").
+  return raw ? { status: res.status, text, json } : { ...(json ?? {}), status: res.status };
 }
 async function until(fn, timeoutMs = 240_000, every = 1500) {
   const t = Date.now();
@@ -175,7 +176,11 @@ check('"accept the top 4" → confirm card listing exactly 4, nothing changed ye
 r = await say(conv, 'turn on auto-reply for meetings');
 check('second proposal created (settings)', !!(await pending(conv, 'UPDATE_JOB_SETTINGS')), r.trace.join(','));
 r = await say(conv, 'yes');
-check('chat "yes" refused when 2 proposals are pending', /Confirm or Cancel button/i.test(r.reply));
+check('chat "yes" with 2 pending confirms only the card just shown (settings), review stays pending', /Confirmed/i.test(r.reply) && !(await pending(conv, 'UPDATE_JOB_SETTINGS')) && !!(await pending(conv, 'REVIEW_DECISIONS')), r.reply.slice(0, 140));
+r = await say(conv, 'turn off auto-reply');
+await say(conv, 'list jobs');
+r = await say(conv, 'yes');
+check('chat "yes" refused when several are pending and none was just shown', /Confirm or Cancel button/i.test(r.reply), r.reply.slice(0, 120));
 await api('POST', `/api/actions/${(await pending(conv, 'UPDATE_JOB_SETTINGS'))?._id}/cancel`);
 const revConf = await api('POST', `/api/actions/${rev?._id}/confirm`);
 const accepted = (await api('GET', `/api/jobs/${jobId}/candidates?status=Accepted`)).candidates ?? [];
@@ -212,7 +217,8 @@ const c1 = await until(async () => {
 }, 300_000, 2000);
 await sleep(4000);
 const c1b = (await api('GET', `/api/campaigns/${campaignId}`)).campaign;
-check('daily limit respected (3 sent, rest delayed to next window)', c1b?.sentToday === 3 && c1b?.totals.sent === 3, `sent=${c1b?.totals.sent} sentToday=${c1b?.sentToday} recipients=${c1b?.totals.recipients}`);
+// sentToday is the CURRENT window's counter (a "day" is OUTREACH_DAY_MS long), so assert the cap, not equality.
+check('daily limit respected (never more than 3 in a window; extra recipients delayed)', c1b?.sentToday <= 3 && c1b?.totals.sent === Math.min(3, c1b?.totals.recipients), `sent=${c1b?.totals.sent} sentToday=${c1b?.sentToday} recipients=${c1b?.totals.recipients}`);
 const preview = c1b?.recipients?.flatMap((x) => x.steps).find((s) => s.previewUrl)?.previewUrl;
 check('real email sent (Ethereal preview URL)', !!preview, preview);
 const contacted = (await api('GET', `/api/jobs/${jobId}/candidates?status=Contacted`)).candidates ?? [];

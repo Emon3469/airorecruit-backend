@@ -27,6 +27,33 @@
       ]
     },
     {
+      "id": "chat-confirm-targets-the-card-just-shown",
+      "turns": [
+        {
+          "say": "accept the top 2",
+          "expect": {
+            "proposal": "REVIEW_DECISIONS",
+            "writes": false
+          }
+        },
+        {
+          "say": "turn on auto-reply for meetings",
+          "expect": {
+            "proposal": "UPDATE_JOB_SETTINGS",
+            "writes": false
+          }
+        },
+        {
+          "say": "yes",
+          "expect": {
+            "confirmation": true,
+            "writes": true,
+            "replyIncludes": "Confirmed|auto-reply is on"
+          }
+        }
+      ]
+    },
+    {
       "id": "chat-confirm-refused-when-ambiguous",
       "turns": [
         {
@@ -40,6 +67,12 @@
           "say": "turn on auto-reply for meetings",
           "expect": {
             "proposal": "UPDATE_JOB_SETTINGS",
+            "writes": false
+          }
+        },
+        {
+          "say": "how is the job going?",
+          "expect": {
             "writes": false
           }
         },

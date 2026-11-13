@@ -151,19 +151,32 @@ export async function handleUserMessage(conversationId: string, content: string,
   const intent = matchConfirmIntent(content);
   if (intent) {
     const pending = await PendingAction.find({ conversationId: conv._id, status: 'pending' }).sort({ createdAt: -1 });
-    if (pending.length === 1) {
-      const action = pending[0]!;
+    // Target resolution, deterministic and unambiguous to the recruiter:
+    //  - exactly one pending proposal → that one;
+    //  - several pending → the single proposal on the assistant message the recruiter just saw
+    //    (immediately before this "yes"); anything else is refused and they use the card buttons.
+    let action = pending.length === 1 ? pending[0]! : null;
+    if (!action && pending.length > 1) {
+      const lastAssistant = await ChatMessage.findOne({ conversationId: conv._id, role: 'assistant', createdAt: { $lt: started } }).sort({ createdAt: -1, _id: -1 });
+      const shown = new Set((lastAssistant?.cards ?? []).map((c) => (c.pendingActionId ? String(c.pendingActionId) : '')).filter(Boolean));
+      const onLast = pending.filter((p) => shown.has(String(p._id)));
+      if (onLast.length === 1) action = onLast[0]!;
+    }
+    if (action) {
+      const others = pending.length - 1;
+      const label = action.type.toLowerCase().replace(/_/g, ' ');
+      const waiting = others ? ` (${others} other proposal${others === 1 ? ' is' : 's are'} still waiting on ${others === 1 ? 'its card' : 'their cards'})` : '';
       try {
         if (intent === 'confirm') {
           const { outcome } = await confirmAction(String(action._id), 'user_chat');
-          // Handlers usually post their own result message; add a short ack only if none was posted.
+          // Handlers usually post their own result message; add a short ack when none was posted or others wait.
           const posted = await messagesSince(conv._id, started);
-          if (posted.filter((m) => m.role === 'assistant').length === 0) {
-            await appendMessage(conv._id, { role: 'assistant', content: `Done: ${outcome.summary}.`, jobId: conv.activeJobId });
+          if (posted.filter((m) => m.role === 'assistant').length === 0 || others) {
+            await appendMessage(conv._id, { role: 'assistant', content: `Confirmed: ${outcome.summary}${waiting}.`, jobId: conv.activeJobId });
           }
         } else {
           await cancelAction(String(action._id), 'user_chat');
-          await appendMessage(conv._id, { role: 'assistant', content: 'Okay, I cancelled that proposal. Nothing was changed.', jobId: conv.activeJobId });
+          await appendMessage(conv._id, { role: 'assistant', content: `Okay, I cancelled the ${label} proposal. Nothing was changed${waiting}.`, jobId: conv.activeJobId });
         }
       } catch (err) {
         await appendMessage(conv._id, {

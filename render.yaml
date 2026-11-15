@@ -1,11 +1,12 @@
 # Render Blueprint — one-click deploy of the AiroRecruit API.
 # Render dashboard → New → Blueprint → pick this repo. You are prompted for every `sync: false` value.
 #
-#   airorecruit-api    Docker web service: Express API + SSE + BullMQ workers in-process
-#   airorecruit-redis  Render Key Value (Redis-compatible), private network only, noeviction (what BullMQ needs)
+# Creates exactly ONE Render resource:
+#   airorecruit-api   Docker web service: Express API + SSE + BullMQ workers in-process
 #
-# MongoDB is external (MongoDB Atlas free tier works): allow 0.0.0.0/0 in Atlas Network Access,
-# because Render's outbound IPs are not static on the free plan.
+# Datastores are external free tiers, so they don't count against Render's service/database limits:
+#   MongoDB  → MongoDB Atlas (M0). Allow 0.0.0.0/0 in Atlas Network Access (Render free has no static IP).
+#   Redis    → Redis Cloud (free 30 MB) or Upstash. Set the eviction policy to `noeviction` (BullMQ needs it).
 services:
   - type: web
     name: airorecruit-api
@@ -24,11 +25,9 @@ services:
         value: "true"
       - key: MONGO_URI
         sync: false # mongodb+srv://USER:PASS@cluster.xxxx.mongodb.net/airorecruit
+      # redis://default:PASS@redis-12345.cXXX.cloud.redislabs.com:12345   (rediss:// if TLS is enabled)
       - key: REDIS_URL
-        fromService:
-          type: keyvalue
-          name: airorecruit-redis
-          property: connectionString
+        sync: false
       # Frontend origin(s), comma-separated, no trailing slash. Wildcards allowed:
       #   https://airorecruit.vercel.app,https://*.vercel.app
       - key: CORS_ORIGINS
@@ -55,9 +54,3 @@ services:
         value: "60000"
       - key: LOG_LEVEL
         value: info
-
-  - type: keyvalue
-    name: airorecruit-redis
-    plan: free
-    maxmemoryPolicy: noeviction
-    ipAllowList: [] # private network only: reachable from airorecruit-api, not from the internet

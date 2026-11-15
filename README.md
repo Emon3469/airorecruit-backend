@@ -121,7 +121,7 @@ Set `OUTREACH_DAY_MS=60000` for demos: a "Day 3" follow-up then fires after 3 mi
 **Recommended topology: backend on Render, frontend on Vercel** (or Render Static).
 
 ```
-Browser ──► Vercel (static SPA, CDN) ──REST + SSE──► Render web service (API + workers) ──► Render Key Value (Redis)
+Browser ──► Vercel (static SPA, CDN) ──REST + SSE──► Render web service (API + workers) ──► Redis Cloud / Upstash
                                                                                       └──► MongoDB Atlas
 ```
 
@@ -129,29 +129,31 @@ Browser ──► Vercel (static SPA, CDN) ──REST + SSE──► Render web 
 
 ### Backend on Render: Blueprint (recommended, about 3 minutes)
 
-[`render.yaml`](render.yaml) provisions the API (Docker) **and** a private Redis with `noeviction`, which BullMQ needs.
+[`render.yaml`](render.yaml) creates **exactly one Render resource**, the API web service (Docker). MongoDB and Redis are external free tiers, so the deploy never counts extra databases against your Render workspace limits.
 
 1. **MongoDB Atlas** (free M0): create a cluster and a database user. Under *Network Access*, allow `0.0.0.0/0`, because Render free instances have no static outbound IP. Copy the `mongodb+srv://…/airorecruit` URI.
-2. In Render, go to **New → Blueprint** and pick this repo.
-3. Fill in the prompted values:
+2. **Redis Cloud** (free 30 MB, or Upstash): create a database. In its configuration, set **Data eviction policy = `noeviction`**, because BullMQ must never have its job keys evicted. Build the URL from the *Public endpoint* and the default user's password: `redis://default:PASSWORD@redis-12345.cXXX.cloud.redislabs.com:12345`. Use `rediss://` if TLS is enabled.
+3. In Render, go to **New → Blueprint** and pick this repo.
+4. Fill in the prompted values:
 
    | Key | Value |
    |---|---|
    | `MONGO_URI` | the Atlas URI |
+   | `REDIS_URL` | the Redis URL from step 2 |
    | `CORS_ORIGINS` | your frontend origin(s), e.g. `https://airorecruit.vercel.app,https://*.vercel.app` |
    | `FRONTEND_URL` | `https://airorecruit.vercel.app` |
    | `PUBLIC_BOOKING_BASE_URL` | `https://airorecruit.vercel.app/booking` |
    | `LLM_API_KEY` | optional. Leave empty for the offline mock agent |
    | `SERPER_API_KEY` | optional |
 
-4. Deploy. Render builds the [`Dockerfile`](Dockerfile), waits for `GET /health`, and goes live at `https://airorecruit-api.onrender.com`.
-5. Check it: open `https://<your-api>.onrender.com/api/health`. It should report `mongo: "up"` and `redis: "up"`.
+5. Deploy. Render builds the [`Dockerfile`](Dockerfile), waits for `GET /health`, and goes live at `https://airorecruit-api.onrender.com`.
+6. Check it: open `https://<your-api>.onrender.com/api/health`. It should report `mongo: "up"` and `redis: "up"`.
 
 You don't know the frontend URL yet? Deploy with `CORS_ORIGINS=*`, deploy the frontend, then set the real origin and redeploy.
 
 ### Backend on Render: manual setup (without a Blueprint)
 
-**New → Web Service** → this repo → **Runtime: Docker** → health check path `/health` → set the environment variables above plus `RUN_WORKERS_IN_API=true` and `REDIS_URL` (Render Key Value, Upstash or Redis Cloud; use `rediss://` for TLS). Do not set `PORT`: Render injects it and the app reads it.
+**New → Web Service** → this repo → **Runtime: Docker** → health check path `/health` → set the environment variables above plus `RUN_WORKERS_IN_API=true` and `REDIS_URL` (Redis Cloud, Upstash or Render Key Value; use `rediss://` for TLS). Do not set `PORT`: Render injects it and the app reads it.
 
 <details>
 <summary>Native Node runtime instead of Docker</summary>
@@ -182,7 +184,8 @@ Set `RUN_WORKERS_IN_API=false` on the web service. Then add a **Background Worke
 - **Cold starts:** free web services sleep after about 15 minutes idle, and the first request takes 30–60 s. While asleep, in-process workers pause and delayed follow-ups fire on wake. Use a paid instance for real campaigns.
 - **Memory (512 MB):** local embeddings fit. If you see out-of-memory restarts, set `EMBEDDINGS=off`, which disables only talent rediscovery.
 - **Email:** Render's free tier may restrict outbound SMTP ports. If sends time out, use a paid instance or an SMTP provider on port 2525 (e.g. Mailtrap).
-- **Free Key Value is in-memory only.** On restart, pending delayed jobs are lost, but MongoDB, the source of truth, keeps all state.
+- **Workspace limits:** the Blueprint adds only one service. If Render still reports that the workspace limit for services and databases is exceeded, the workspace is already full, so delete unused services or databases (Dashboard → resource → Settings → Delete), or deploy in a different workspace.
+- **Redis eviction policy:** if the logs say `Eviction policy is volatile-lru. It should be "noeviction"`, change the policy in the Redis provider's dashboard. Under memory pressure, other policies can silently drop queued jobs.
 
 > **Why this matters:** most take-home deploys fail on CORS, env vars or missing workers. These failures are prevented in code and documented here, so the first deploy works.
 

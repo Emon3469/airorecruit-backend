@@ -1,0 +1,63 @@
+# Render Blueprint — one-click deploy of the AiroRecruit API.
+# Render dashboard → New → Blueprint → pick this repo. You are prompted for every `sync: false` value.
+#
+#   airorecruit-api    Docker web service: Express API + SSE + BullMQ workers in-process
+#   airorecruit-redis  Render Key Value (Redis-compatible), private network only, noeviction (what BullMQ needs)
+#
+# MongoDB is external (MongoDB Atlas free tier works): allow 0.0.0.0/0 in Atlas Network Access,
+# because Render's outbound IPs are not static on the free plan.
+services:
+  - type: web
+    name: airorecruit-api
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # One service runs API + workers. Set to false only if you add a Background Worker with
+      # Docker command `node dist/worker.js` (same repo, same env).
+      - key: RUN_WORKERS_IN_API
+        value: "true"
+      - key: MONGO_URI
+        sync: false # mongodb+srv://USER:PASS@cluster.xxxx.mongodb.net/airorecruit
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: airorecruit-redis
+          property: connectionString
+      # Frontend origin(s), comma-separated, no trailing slash. Wildcards allowed:
+      #   https://airorecruit.vercel.app,https://*.vercel.app
+      - key: CORS_ORIGINS
+        sync: false
+      - key: FRONTEND_URL
+        sync: false # https://airorecruit.vercel.app
+      - key: PUBLIC_BOOKING_BASE_URL
+        sync: false # https://airorecruit.vercel.app/booking
+      # LLM: leave the key empty to run the deterministic offline mock agent end to end.
+      - key: LLM_PROVIDER
+        value: anthropic
+      - key: LLM_API_KEY
+        sync: false
+      - key: JOB_BUDGET_USD
+        value: "5"
+      - key: SERPER_API_KEY
+        sync: false
+      # Free instances have 512 MB RAM. Local embeddings (an in-process ONNX model) usually fit, but set
+      # EMBEDDINGS=off if you see out-of-memory restarts; talent rediscovery is then disabled.
+      - key: EMBEDDINGS
+        value: local
+      # 60000 = one sequence "day" per minute, so Day-3 follow-ups are visible in a demo.
+      - key: OUTREACH_DAY_MS
+        value: "60000"
+      - key: LOG_LEVEL
+        value: info
+
+  - type: keyvalue
+    name: airorecruit-redis
+    plan: free
+    maxmemoryPolicy: noeviction
+    ipAllowList: [] # private network only: reachable from airorecruit-api, not from the internet

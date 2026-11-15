@@ -1,6 +1,6 @@
-# Eval run 2026-11-13T18-33-44-600Z-mock
+# Eval run 2026-11-15T09-27-01-587Z-mock
 
-provider `mock` · models `{"agent":"mock-agent","fast":"mock-fast"}` · git `9cc3c12` · gate **PASSED**
+provider `mock` · models `{"agent":"mock-agent","fast":"mock-fast"}` · git `80389ed` · gate **PASSED**
 
 | Suite | Cases | Metrics |
 |---|---|---|
@@ -10,7 +10,7 @@ provider `mock` · models `{"agent":"mock-agent","fast":"mock-fast"}` · git `9c
 | guardrails.jd_fairness | 14/14 | accuracy=1, recall=1, falsePositiveRate=0 |
 | replies.classification | 19/20 | accuracy=0.95, macroF1=0.9492, injectionCasesCorrect=1 |
 | scoring.ranking | 13/13 | ndcg5=0.8152, spearman=0.7492, pairwiseOrderAccuracy=0.8727, labelled=13 |
-| agent.hitl | 15/15 | passRate=1, toolSelectionAccuracy=1, hitlViolations=0, guardrailLlmCalls=0, avgTurnMs=34 |
+| agent.hitl | 15/15 | passRate=1, toolSelectionAccuracy=1, hitlViolations=0, guardrailLlmCalls=0, avgTurnMs=77 |
 
 ## Failures
 

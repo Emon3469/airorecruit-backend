@@ -13,6 +13,26 @@ import { bookingPageRouter } from './http/bookingPage';
 import { setMockChatHandler } from './llm';
 import { mockChat } from './agent/mockRouter';
 
+/**
+ * CORS allow-list from a comma-separated env value. Tolerant of the usual deploy mistakes:
+ * trailing slashes and stray spaces are ignored, `*` allows any origin, and a `*` inside an entry
+ * is a wildcard (e.g. `https://*.vercel.app` covers every Vercel preview deployment).
+ */
+export function corsOrigin(list: string): (origin: string | undefined, cb: (err: Error | null, allow?: boolean) => void) => void {
+  const entries = list
+    .split(',')
+    .map((s) => s.trim().replace(/\/+$/, '').toLowerCase())
+    .filter(Boolean);
+  const anyOrigin = entries.includes('*');
+  const patterns = entries.map((e) => new RegExp(`^${e.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '[a-z0-9-]+')}$`));
+  return (origin, cb) => {
+    // Same-origin requests, curl and server-to-server calls send no Origin header.
+    if (!origin || anyOrigin) return cb(null, true);
+    const o = origin.replace(/\/+$/, '').toLowerCase();
+    cb(null, patterns.some((p) => p.test(o)));
+  };
+}
+
 export function createApp() {
   setMockChatHandler(mockChat);
   const app = express();
@@ -21,7 +41,7 @@ export function createApp() {
   app.use(helmet({ contentSecurityPolicy: false }));
   app.use(
     cors({
-      origin: env.CORS_ORIGINS.split(',').map((s) => s.trim()),
+      origin: corsOrigin(env.CORS_ORIGINS),
       credentials: false,
       exposedHeaders: ['Content-Type'],
     }),
